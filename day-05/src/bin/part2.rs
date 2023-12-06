@@ -23,14 +23,12 @@ fn main() {
 fn part2(input: &str) -> i64 {
     let (seeds, alamac) = parse_almanac(input);
 
-    let transformed = dbg!(seeds
+    let transformed = seeds
         .into_iter()
-        .map(|s| convert("seed".to_string(), s, &alamac))
-        .next()
-        .unwrap());
+        .map(|s| convert("seed".to_string(), s, &alamac));
 
     transformed
-        .iter()
+        .flatten()
         .map(|r| r.start)
         .min()
         .expect("Couldn't find min location")
@@ -41,7 +39,6 @@ fn convert(from: String, range: Range, alamac: &HashMap<String, Map>) -> Vec<Ran
         return vec![range];
     }
     let map = alamac.get(&from).expect("Category not found");
-    dbg!(&map.to);
     let mut transformations = map.ranges.iter().collect::<Vec<&Range>>();
     transformations.sort_by_key(|t| t.start);
     let mut padding = transformations
@@ -103,7 +100,7 @@ fn convert(from: String, range: Range, alamac: &HashMap<String, Map>) -> Vec<Ran
             },
         )
         .filter(|r| r.start <= r.end)
-        .map(|r| convert(map.to.clone(), dbg!(r), &alamac))
+        .map(|r| convert(map.to.clone(), r, &alamac))
         .flatten()
         .collect::<Vec<Range>>()
 }
@@ -307,7 +304,7 @@ soil-to-fertilizer map:
 
     #[test]
     fn it_works() {
-        let input = "seeds: 79 14
+        let input = "seeds: 79 14 55 13
 
 seed-to-soil map:
 50 98 2
