@@ -2,16 +2,16 @@ use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq)]
 struct Range {
-    dst_start: u32,
-    src_start: u32,
-    len: u32,
+    start: i64,
+    end: i64,
+    shift: i64,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 struct Map {
     from: String,
     to: String,
-    range: HashMap<u32, u32>,
+    range: Vec<Range>,
 }
 
 fn main() {
@@ -20,7 +20,7 @@ fn main() {
     dbg!(output);
 }
 
-fn part1(input: &str) -> u32 {
+fn part1(input: &str) -> i64 {
     let (seeds, alamac) = parse_almanac(input);
 
     seeds
@@ -30,9 +30,17 @@ fn part1(input: &str) -> u32 {
         .expect("Could not find solution")
 }
 
-fn convert(from: String, id: u32, alamac: &HashMap<String, Map>) -> u32 {
+fn convert(from: String, id: i64, alamac: &HashMap<String, Map>) -> i64 {
     let map = alamac.get(&from).expect("Category not found");
-    let new_id = *map.range.get(&id).unwrap_or(&id);
+    let range = map
+        .range
+        .iter()
+        .filter(|r| (r.start <= id) && (id <= r.end))
+        .next();
+    let new_id = match range {
+        Some(r) => id + r.shift,
+        None => id,
+    };
 
     match map.to.as_str() {
         "location" => new_id,
@@ -40,7 +48,7 @@ fn convert(from: String, id: u32, alamac: &HashMap<String, Map>) -> u32 {
     }
 }
 
-fn parse_almanac(input: &str) -> (Vec<u32>, HashMap<String, Map>) {
+fn parse_almanac(input: &str) -> (Vec<i64>, HashMap<String, Map>) {
     let mut lines = input.lines();
     let seeds = parse_seeds(lines.next().unwrap());
     let _ = lines.next();
@@ -65,12 +73,12 @@ fn parse_almanac(input: &str) -> (Vec<u32>, HashMap<String, Map>) {
     (seeds, almanac)
 }
 
-fn parse_seeds(seeds_str: &str) -> Vec<u32> {
+fn parse_seeds(seeds_str: &str) -> Vec<i64> {
     seeds_str
         .strip_prefix("seeds:")
         .expect("Prefix not found")
         .split_whitespace()
-        .map(|num| num.parse::<u32>().expect("Could not parse seed"))
+        .map(|num| num.parse::<i64>().expect("Could not parse seed"))
         .collect()
 }
 
@@ -85,15 +93,7 @@ fn parse_map(map_str: &str) -> Map {
     let from = header.next().expect("Could not parse from").to_string();
     let to = header.next().expect("Could not parse to").to_string();
 
-    let range = lines
-        .map(parse_range)
-        .map(|mr| {
-            (0..mr.len)
-                .map(|i| (mr.src_start + i, mr.dst_start + i))
-                .collect::<Vec<(u32, u32)>>()
-        })
-        .flatten()
-        .collect::<HashMap<u32, u32>>();
+    let range = lines.map(parse_range).collect::<Vec<Range>>();
 
     Map { from, to, range }
 }
@@ -103,22 +103,22 @@ fn parse_range(line: &str) -> Range {
     let dst_start = columns
         .next()
         .expect("Could not find destination start")
-        .parse::<u32>()
+        .parse::<i64>()
         .expect("Could not parse destination start");
     let src_start = columns
         .next()
         .expect("Could not find source start")
-        .parse::<u32>()
+        .parse::<i64>()
         .expect("Could not parse source start");
     let len = columns
         .next()
         .expect("Could not find length")
-        .parse::<u32>()
+        .parse::<i64>()
         .expect("Could not parse length");
     Range {
-        dst_start,
-        src_start,
-        len,
+        start: src_start,
+        end: src_start + len - 1,
+        shift: dst_start - src_start,
     }
 }
 
@@ -138,9 +138,9 @@ mod tests {
     fn test_parse_range() {
         let input = "50 98 2";
         let expected = Range {
-            dst_start: 50,
-            src_start: 98,
-            len: 2,
+            start: 98,
+            end: 99,
+            shift: -48,
         };
         let result = parse_range(input);
         assert_eq!(result, expected);
@@ -154,7 +154,18 @@ mod tests {
         let expected = Map {
             from: "seed".to_string(),
             to: "soil".to_string(),
-            range: HashMap::from_iter([(98, 50), (99, 51), (7, 57), (8, 58), (9, 59), (10, 60)]),
+            range: vec![
+                Range {
+                    start: 98,
+                    end: 99,
+                    shift: -48,
+                },
+                Range {
+                    start: 7,
+                    end: 10,
+                    shift: 50,
+                },
+            ],
         };
         let result = parse_map(input);
         assert_eq!(result, expected);
@@ -176,7 +187,11 @@ soil-to-fertilizer map:
                 Map {
                     from: "seed".to_string(),
                     to: "soil".to_string(),
-                    range: HashMap::from_iter([(98, 50), (99, 51)]),
+                    range: vec![Range {
+                        start: 98,
+                        end: 99,
+                        shift: -48,
+                    }],
                 },
             ),
             (
@@ -184,7 +199,11 @@ soil-to-fertilizer map:
                 Map {
                     from: "soil".to_string(),
                     to: "fertilizer".to_string(),
-                    range: HashMap::from_iter([(52, 37), (53, 38)]),
+                    range: vec![Range {
+                        start: 52,
+                        end: 53,
+                        shift: -15,
+                    }],
                 },
             ),
         ]);
