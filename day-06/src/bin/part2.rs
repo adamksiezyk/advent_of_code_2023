@@ -9,7 +9,7 @@ fn part1(input: String) -> i64 {
     let time = parse_line(lines.next().expect("Time not found"));
     let distance = parse_line(lines.next().expect("Distance not found"));
     let (b1, b2) = quadratic_root(1, -time, distance);
-    (b2.ceil() as i64) - 1 - (b1.ceil() as i64)
+    (b2.ceil() as i64) - 1 - (b1.floor() as i64)
 }
 
 fn parse_line(line: &str) -> i64 {
