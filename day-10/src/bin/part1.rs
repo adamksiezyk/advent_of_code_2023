@@ -1,16 +1,15 @@
 use std::collections::HashMap;
 
-use itertools::Itertools;
-
-enum TileType {
-    Start,
-    Pipe,
-}
-
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct Point {
     x: i32,
     y: i32,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+struct Tile {
+    label: char,
+    coords: Point,
 }
 
 fn main() {
@@ -21,7 +20,55 @@ fn main() {
 
 fn part1(input: String) -> i32 {
     let tiles = parse_tiles(input);
-    0
+    let start = tiles
+        .iter()
+        .find_map(|(p, c)| match c {
+            'S' => Some(p),
+            _ => None,
+        })
+        .unwrap();
+    // let steps = find_first_steps(&tiles, &start);
+    let steps = vec![
+        Point { x: 0, y: 1 },
+        Point { x: 0, y: -1 },
+        Point { x: -1, y: 0 },
+        Point { x: 1, y: 0 },
+    ];
+    let main_loop = steps
+        .iter()
+        .find_map(|s| {
+            let mut current_tile = Tile {
+                label: 'S',
+                coords: start.clone(),
+            };
+            let mut next_step = Some(s.clone());
+            let mut path = Vec::<Tile>::new();
+            loop {
+                match next_step {
+                    Some(ns) => {
+                        match step(&current_tile.coords, &ns, &tiles) {
+                            Some(next_tile) => {
+                                if next_tile.label == 'S' {
+                                    return Some(path);
+                                }
+                                path.push(next_tile.clone());
+                                next_step = Some(get_next_step(&ns, &next_tile));
+                                current_tile = next_tile.clone();
+                            }
+                            None => {
+                                return None;
+                            }
+                        };
+                    }
+                    None => {
+                        return None;
+                    }
+                };
+            }
+        })
+        .expect("No loop found");
+
+    ((main_loop.len() + 1) / 2) as i32
 }
 
 fn parse_tiles(input: String) -> HashMap<Point, char> {
@@ -44,22 +91,64 @@ fn parse_tiles(input: String) -> HashMap<Point, char> {
         .collect::<HashMap<_, _>>()
 }
 
-fn find_first_steps(tiles: &HashMap<Point, char>) -> Vec<Point> {
-    let start = tiles
-        .iter()
-        .find_map(|(p, c)| match c {
-            'S' => Some(p),
-            _ => None,
-        })
-        .unwrap();
-    vec![(0, 1), (0, -1), (-1, 0), (1, 0)]
-        .iter()
-        .map(|(dx, dy)| Point {
-            x: start.x + dx,
-            y: start.y + dy,
-        })
-        .filter_map(|p| tiles.contains_key(&p).then_some(p))
-        .collect_vec()
+fn step(p: &Point, direction: &Point, tiles: &HashMap<Point, char>) -> Option<Tile> {
+    let next_p = Point {
+        x: p.x + direction.x,
+        y: p.y + direction.y,
+    };
+    let next_tile = tiles.get(&next_p);
+
+    if next_tile.is_none() {
+        return None;
+    }
+
+    let next_tile = next_tile.unwrap();
+    let valid_tiles = match direction {
+        Point { x: 0, y: -1 } => ['|', '7', 'F', 'S'],
+        Point { x: 0, y: 1 } => ['|', 'L', 'J', 'S'],
+        Point { x: 1, y: 0 } => ['-', '7', 'J', 'S'],
+        Point { x: -1, y: 0 } => ['-', 'L', 'F', 'S'],
+        _ => panic!("Invalid direction"),
+    };
+
+    if valid_tiles.contains(next_tile) {
+        return Some(Tile {
+            label: *next_tile,
+            coords: next_p,
+        });
+    } else {
+        return None;
+    }
+}
+
+fn get_next_step(current_step: &Point, next_tile: &Tile) -> Point {
+    match next_tile.label {
+        '|' => match current_step {
+            Point { x: 0, y: 1 } => Point { x: 0, y: 1 },
+            _ => Point { x: 0, y: -1 },
+        },
+        '-' => match current_step {
+            Point { x: 1, y: 0 } => Point { x: 1, y: 0 },
+            _ => Point { x: -1, y: 0 },
+        },
+        '7' => match current_step {
+            Point { x: 1, y: 0 } => Point { x: 0, y: 1 },
+            _ => Point { x: -1, y: 0 },
+        },
+        'J' => match current_step {
+            Point { x: 0, y: 1 } => Point { x: -1, y: 0 },
+            _ => Point { x: 0, y: -1 },
+        },
+        'L' => match current_step {
+            Point { x: 0, y: 1 } => Point { x: 1, y: 0 },
+            _ => Point { x: 0, y: -1 },
+        },
+        'F' => match current_step {
+            Point { x: -1, y: 0 } => Point { x: 0, y: 1 },
+            _ => Point { x: 1, y: 0 },
+        },
+        _ => panic!("Invalid tile"),
+    }
 }
 
 #[cfg(test)]
@@ -67,24 +156,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_find_first_steps() {
-        let input = HashMap::from_iter([
-            (Point { x: 1, y: 1 }, 'S'),
-            (Point { x: 2, y: 1 }, '-'),
-            (Point { x: 3, y: 1 }, '7'),
-            (Point { x: 1, y: 2 }, '|'),
-            (Point { x: 3, y: 2 }, '|'),
-            (Point { x: 1, y: 3 }, 'L'),
-            (Point { x: 2, y: 3 }, '-'),
-            (Point { x: 3, y: 3 }, 'J'),
-        ]);
-        let expected = vec![Point { x: 1, y: 2 }, Point { x: 2, y: 1 }];
-        let result = find_first_steps(&input);
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_find_start_node() {
+    fn test_parse_tiles() {
         let input = ".....
 .S-7.
 .|.|.
@@ -106,14 +178,49 @@ mod tests {
     }
 
     #[test]
+    fn test_step() {
+        let input_p = Point { x: 1, y: 1 };
+        let input_direction = Point { x: 1, y: 0 };
+        let input_tiles = HashMap::from_iter([
+            (Point { x: 1, y: 1 }, 'S'),
+            (Point { x: 2, y: 1 }, '-'),
+            (Point { x: 3, y: 1 }, '7'),
+            (Point { x: 1, y: 2 }, '|'),
+            (Point { x: 3, y: 2 }, '|'),
+            (Point { x: 1, y: 3 }, 'L'),
+            (Point { x: 2, y: 3 }, '-'),
+            (Point { x: 3, y: 3 }, 'J'),
+        ]);
+        let expected = Some(Tile {
+            label: '-',
+            coords: Point { x: 2, y: 1 },
+        });
+        let result = step(&input_p, &input_direction, &input_tiles);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
     fn it_works() {
-        let input = ".....
-.S-7.
-.|.|.
-.L-J.
-....."
+        let input = "-L|F7
+7S-7|
+L|7||
+-L-J|
+L|-JF"
             .to_string();
         let expected = 4;
+        let result = part1(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn it_works_2() {
+        let input = "..F7.
+.FJ|.
+SJ.L7
+|F--J
+LJ..."
+            .to_string();
+        let expected = 8;
         let result = part1(input);
         assert_eq!(result, expected);
     }
